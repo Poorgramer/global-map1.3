@@ -239,9 +239,8 @@ const app = {
     markerLayer: null,
     markersCache: {},
     currentPopupMarker: null,
-    isMobile: false, // 设备检测
+    isMobile: false,
     init: function() {
-        // 检测是否为移动设备
         this.isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth < 768;
         this.initMap();
         this.renderStats();
@@ -259,15 +258,18 @@ const app = {
             maxBoundsViscosity: 1.0,
             preferCanvas: true
         });
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '&copy; OpenStreetMap contributors',
-            subdomains: ['a', 'b', 'c'],
-            noWrap: true, 
+        
+        // 使用高德地图瓦片（国内稳定访问）
+        L.tileLayer('https://webrd02.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=7&x={x}&y={y}&z={z}', {
+            attribution: '&copy; <a href="https://www.amap.com">高德地图</a>',
+            subdomains: ['01', '02', '03', '04'],
             maxZoom: 18
         }).addTo(this.map);
+        
         L.control.zoom({ position: 'bottomright' }).addTo(this.map);
         this.markerLayer = L.layerGroup().addTo(this.map);
         this.createMarkers();
+        
         // 监听地图点击事件，关闭所有弹窗
         this.map.on('click', () => {
             if (this.map) {
@@ -275,6 +277,7 @@ const app = {
                 this.currentPopupMarker = null;
             }
         });
+        
         setTimeout(() => {
             this.map.invalidateSize();
         }, 100);
@@ -303,22 +306,17 @@ const app = {
                 .bindPopup(popupContent)
                 .bindTooltip(`${item.city} - ${item.project}`, { direction: 'top', offset: [0, -20] });
             
-            // 标记点击事件
+            // 标记点击事件：只弹窗，不高亮表格（移动端和PC端都不滚动表格）
             marker.on('click', (e) => {
-                // 关键修复：先关闭所有弹窗
                 if (this.map) {
                     this.map.closePopup();
                 }
-                // 短暂延迟后打开新弹窗，确保状态完全重置
                 setTimeout(() => {
                     marker.openPopup();
                     this.currentPopupMarker = marker;
                 }, 10);
-                
-                // 仅高亮表格行，移动端和PC端都不滚动
+                // 仅高亮表格行，不滚动
                 this.highlightTableRowOnly(index);
-                
-                // 阻止事件冒泡
                 L.DomEvent.stopPropagation(e);
             });
             this.markersCache[index] = marker;
@@ -326,7 +324,6 @@ const app = {
     },
     // 仅高亮表格行，不滚动
     highlightTableRowOnly: function(index) {
-        // 移除所有高亮
         document.querySelectorAll('tr.highlighted').forEach(r => {
             r.classList.remove('highlighted');
             r.classList.remove('highlighted-temp');
@@ -337,9 +334,8 @@ const app = {
             row.classList.add('highlighted-temp');
         }
     },
-    // 表格行点击：地图定位并打开弹窗，同时滚动到该行（表格行点击保留滚动功能）
+    // 表格行点击：地图定位并打开弹窗，同时滚动到该行
     highlightTableRow: function(index) {
-        // 移除所有高亮
         document.querySelectorAll('tr.highlighted').forEach(r => {
             r.classList.remove('highlighted');
             r.classList.remove('highlighted-temp');
@@ -460,19 +456,16 @@ const app = {
         const item = this.data[index];
         const marker = this.markersCache[index];
         if (marker) {
-            // 先关闭所有弹窗
             if (this.map) {
                 this.map.closePopup();
                 this.currentPopupMarker = null;
             }
             const zoomLevel = window.innerWidth < 768 ? 5 : 6;
             this.map.flyTo([item.lat, item.lng], zoomLevel, { duration: 1.2 });
-            // 等待地图移动完成后打开弹窗
             setTimeout(() => {
                 marker.openPopup();
                 this.currentPopupMarker = marker;
             }, 500);
-            // 表格行点击时滚动并高亮该行
             this.highlightTableRow(index);
         }
     }
