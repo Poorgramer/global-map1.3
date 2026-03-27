@@ -1,0 +1,440 @@
+	<!DOCTYPE html>
+	<html lang="zh-CN">
+	<head>
+	    <meta charset="UTF-8">
+	    <!-- 移动端优化关键标签：禁止缩放，适应屏幕宽度 -->
+	    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+	    <title>全球项目可视化 (移动优化版)</title>
+	    <!-- Leaflet CSS -->
+	    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+	    <style>
+	        /* 基础重置 */
+	        html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow-x: hidden; }
+	        :root {
+	            --primary-color: #0984e3;
+	            --success-color: #00b894;
+	            --card-shadow: 0 2px 8px rgba(0,0,0,0.1);
+	            --text-dark: #2d3436;
+	            --text-light: #636e72;
+	        }
+	        body {
+	            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", sans-serif;
+	            background: #f0f2f5;
+	            color: var(--text-dark);
+	            display: flex;
+	            flex-direction: column;
+	        }
+	        /* 布局容器 - 增加最大宽度限制，PC端更好看 */
+	        .container {
+	            width: 100%;
+	            max-width: 1440px;
+	            margin: 0 auto;
+	            padding: 10px;
+	            box-sizing: border-box;
+	            display: flex;
+	            flex-direction: column;
+	            gap: 15px;
+	        }
+	        header { text-align: center; margin-bottom: 5px; }
+	        h1 { margin: 0; font-size: 1.5rem; color: #2d3436; }
+	        .subtitle { color: var(--text-light); margin-top: 5px; font-size: 0.85rem; }
+	        /* 统计卡片 - 手机端优化网格 */
+	        .stats-grid {
+	            display: grid;
+	            grid-template-columns: repeat(4, 1fr); /* 默认4列 */
+	            gap: 10px;
+	        }
+	        .stat-card {
+	            background: white;
+	            padding: 15px 10px;
+	            border-radius: 10px;
+	            box-shadow: var(--card-shadow);
+	            text-align: center;
+	        }
+	        .stat-number { font-size: 1.5rem; font-weight: 700; color: var(--primary-color); }
+	        .stat-label { font-size: 0.75rem; color: var(--text-light); margin-top: 4px; }
+	        /* 控制面板 - 手机端横向滚动优化 */
+	        .control-panel {
+	            background: white;
+	            padding: 15px;
+	            border-radius: 10px;
+	            box-shadow: var(--card-shadow);
+	            display: flex;
+	            flex-direction: column;
+	            gap: 15px;
+	        }
+	        .filter-group { display: flex; flex-direction: column; gap: 8px; }
+	        .filter-title { font-size: 0.8rem; font-weight: 700; color: #999; text-transform: uppercase; }
+	        .filter-options { 
+	            display: flex; 
+	            gap: 8px; 
+	            overflow-x: auto; /* 手机端支持横向滚动 */
+	            padding-bottom: 5px;
+	            -webkit-overflow-scrolling: touch;
+	        }
+	        .filter-btn {
+	            border: 1px solid #eee;
+	            background: white;
+	            padding: 6px 14px;
+	            border-radius: 15px;
+	            font-size: 0.85rem;
+	            cursor: pointer;
+	            white-space: nowrap; /* 防止文字换行 */
+	            transition: all 0.2s;
+	            color: var(--text-light);
+	        }
+	        .filter-btn.active.status-running { background: var(--success-color); color: white; border-color: var(--success-color); }
+	        .filter-btn.active.status-designing { background: var(--primary-color); color: white; border-color: var(--primary-color); }
+	        .filter-btn.active.country { background: #2d3436; color: white; border-color: #2d3436; }
+	        .reset-btn {
+	            align-self: flex-end;
+	            background: #fff;
+	            border: 1px solid #ff7675;
+	            color: #ff7675;
+	            padding: 6px 16px;
+	            border-radius: 6px;
+	            font-size: 0.85rem;
+	        }
+	        /* === 地图容器 === */
+	        #map-wrapper {
+	            height: 50vh; /* 手机端占屏幕高度的一半 */
+	            width: 100%;
+	            background: white;
+	            border-radius: 10px;
+	            box-shadow: var(--card-shadow);
+	            overflow: hidden;
+	            position: relative;
+	            z-index: 1;
+	        }
+	        #map { height: 100%; width: 100%; margin: 0; padding: 0; }
+	        /* === 表格容器 === */
+	        .table-wrapper {
+	            background: white;
+	            border-radius: 10px;
+	            box-shadow: var(--card-shadow);
+	            overflow: hidden;
+	            display: flex;
+	            flex-direction: column;
+	            height: 400px; /* 固定高度，内部滚动 */
+	        }
+	        .table-header {
+	            padding: 10px 15px;
+	            border-bottom: 1px solid #eee;
+	            background: #f8f9fa;
+	            font-size: 0.9rem;
+	        }
+	        .table-scroll { overflow-y: auto; flex: 1; -webkit-overflow-scrolling: touch; }
+	        table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+	        th {
+	            background: #fff;
+	            position: sticky;
+	            top: 0;
+	            z-index: 10;
+	            padding: 10px;
+	            color: var(--text-light);
+	            font-weight: 600;
+	            border-bottom: 1px solid #ddd;
+	            font-size: 0.8rem;
+	        }
+	        td { padding: 10px; border-bottom: 1px solid #f1f2f6; }
+	        tr:hover { background-color: #f0f8ff; }
+	        /* 点击行高亮动画 */
+	        tr.highlighted {
+	            background-color: #ffeaa7 !important;
+	            animation: pulse-row 1.5s infinite;
+	        }
+	        @keyframes pulse-row {
+	            0% { background-color: #ffeaa7; }
+	            50% { background-color: #fff3cd; }
+	            100% { background-color: #ffeaa7; }
+	        }
+	        .badge { padding: 3px 8px; border-radius: 10px; font-size: 0.7rem; color: white; font-weight: bold;}
+	        .badge.running { background-color: var(--success-color); }
+	        .badge.designing { background-color: var(--primary-color); }
+	        /* Marker 样式 */
+	        .custom-marker {
+	            display: flex;
+	            align-items: center;
+	            justify-content: center;
+	            border-radius: 50%;
+	            border: 2px solid white;
+	            box-shadow: 0 3px 10px rgba(0,0,0,0.3);
+	        }
+	        .marker-running { background-color: var(--success-color); color: white; }
+	        .marker-designing { background-color: var(--primary-color); color: white; }
+	        /* 弹窗样式 */
+	        .leaflet-popup-content-wrapper { border-radius: 8px; }
+	        .leaflet-popup-content h3 { margin: 0 0 5px 0; font-size: 16px; color: #333; }
+	        .leaflet-popup-content p { margin: 2px 0; font-size: 13px; color: #666; }
+	        .popup-row { display: flex; justify-content: space-between; gap: 10px; margin-bottom: 2px;}
+	        .empty-state { text-align: center; padding: 30px; color: #999; font-size: 0.9rem; display: none;}
+	        /* === 响应式调整 === */
+	        @media (max-width: 768px) {
+	            .stats-grid {
+	                grid-template-columns: repeat(2, 1fr); /* 手机端改为2列 */
+	            }
+	            #map-wrapper {
+	                height: 40vh; /* 手机端地图高度减小 */
+	            }
+	            .container { padding: 10px; gap: 10px; }
+	            h1 { font-size: 1.2rem; }
+	        }
+	    </style>
+	</head>
+	<body>
+	<div class="container">
+	    <header>
+	        <h1>🌍 全球项目分布</h1>
+	        <div class="subtitle">实时监控数据看板</div>
+	    </header>
+	    <div class="stats-grid" id="statsContainer"></div>
+	    <div class="control-panel">
+	        <div class="filter-group">
+	            <div class="filter-title">状态筛选</div>
+	            <div class="filter-options" id="statusFilters"></div>
+	        </div>
+	        <div class="filter-group">
+	            <div class="filter-title">地区筛选</div>
+	            <div class="filter-options" id="countryFilters"></div>
+	        </div>
+	        <button class="reset-btn" onclick="app.resetAll()">重置</button>
+	    </div>
+	    <div id="map-wrapper">
+	        <div id="map"></div>
+	    </div>
+	    <div class="table-wrapper">
+	        <div class="table-header">
+	            <span id="tableCount">加载中...</span>
+	        </div>
+	        <div class="table-scroll">
+	            <table id="projectTable">
+	                <thead>
+	                    <tr>
+	                        <th>国家</th>
+	                        <th>城市</th>
+	                        <th>项目</th>
+	                        <th>状态</th>
+	                    </tr>
+	                </thead>
+	                <tbody id="tableBody"></tbody>
+	            </table>
+	            <div id="emptyState" class="empty-state">暂无数据</div>
+	        </div>
+	    </div>
+	</div>
+	<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+	<script>
+	const app = {
+	    data: [
+	        {country: "中国", city: "西安", project: "电网调频", status: "运行中", lat: 34.3416, lng: 108.9398},
+	        {country: "中国", city: "新疆克拉玛依", project: "重型工程车", status: "运行中", lat: 45.5790, lng: 84.8883},
+	        {country: "中国", city: "广州", project: "低速车", status: "运行中", lat: 23.1291, lng: 113.2644},
+	        {country: "中国", city: "福州", project: "电网调频", status: "设计中", lat: 26.0789, lng: 119.3064},
+	        {country: "中国", city: "呼和浩特", project: "电网调频", status: "设计中", lat: 40.8424, lng: 111.7499},
+	        {country: "中国", city: "哈尔滨", project: "5G基站", status: "运行中", lat: 45.8034, lng: 126.5349},
+	        {country: "中国", city: "贵阳", project: "数据中心", status: "运行中", lat: 26.6470, lng: 106.6302},
+	        {country: "中国", city: "新疆塔城地区", project: "油田节能", status: "运行中", lat: 46.7033, lng: 82.9716},
+	        {country: "日本", city: "东京", project: "AGV", status: "运行中", lat: 35.6895, lng: 139.6917},
+	        {country: "日本", city: "名古屋", project: "低速车", status: "设计中", lat: 35.1815, lng: 136.9066},
+	        {country: "德国", city: "慕尼黑", project: "电网调频", status: "设计中", lat: 48.1351, lng: 11.5820},
+	        {country: "美国", city: "芝加哥", project: "电网调频", status: "设计中", lat: 41.8781, lng: -87.6298},
+	        {country: "加拿大", city: "多伦多", project: "电网调频", status: "设计中", lat: 43.6532, lng: -79.3832},
+	        {country: "加拿大", city: "温哥华", project: "电梯节能", status: "设计中", lat: 49.2827, lng: -123.1207},
+	        {country: "阿联酋", city: "阿布扎比", project: "油田节能", status: "设计中", lat: 24.4539, lng: 54.3773},
+	        {country: "阿联酋", city: "迪拜", project: "油田节能", status: "设计中", lat: 25.2048, lng: 55.2793},
+	        {country: "越南", city: "胡志明市", project: "低速车", status: "设计中", lat: 10.8231, lng: 106.6297},
+	        {country: "菲律宾", city: "马尼拉", project: "低速车", status: "设计中", lat: 14.5995, lng: 120.9842}
+	    ],
+	    state: { activeStatuses: [], activeCountries: [] },
+	    map: null,
+	    markerLayer: null,
+	    markersCache: {},
+	    init: function() {
+	        this.initMap();
+	        this.renderStats();
+	        this.renderFilterButtons();
+	        this.renderTable();
+	        this.updateView();
+	    },
+	    initMap: function() {
+	        this.map = L.map('map', {
+	            center: [35, 105],
+	            zoom: 4,
+	            zoomControl: false, // 隐藏默认的，稍后自定义位置
+	            minZoom: 2,
+	            maxBounds: L.latLngBounds([-90, -180], [90, 180]),
+	            maxBoundsViscosity: 1.0,
+	            preferCanvas: true
+	        });
+	        // 修正地图错位的核心参数
+	        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+	            attribution: '&copy; OpenStreetMap contributors',
+	            subdomains: ['a', 'b', 'c'],
+	            noWrap: true, 
+	            maxZoom: 18
+	        }).addTo(this.map);
+	        L.control.zoom({ position: 'bottomright' }).addTo(this.map);
+	        this.markerLayer = L.layerGroup().addTo(this.map);
+	        this.createMarkers();
+	        setTimeout(() => {
+	            this.map.invalidateSize();
+	        }, 100);
+	    },
+	    createMarkers: function() {
+	        this.data.forEach((item, index) => {
+	            const statusClass = item.status === '运行中' ? 'marker-running' : 'marker-designing';
+	            const iconSymbol = item.status === '运行中' ? '●' : '▲';
+	            const customIcon = L.divIcon({
+	                className: 'custom-div-icon',
+	                html: `<div class="custom-marker ${statusClass}" style="width: 32px; height: 32px; font-size:16px;">${iconSymbol}</div>`,
+	                iconSize: [32, 32],
+	                iconAnchor: [16, 16],
+	                popupAnchor: [0, -16]
+	            });
+	            const popupContent = `
+	                <div class="popup-content">
+	                    <h3>${item.project}</h3>
+	                    <div class="popup-row"><span>📍 地点:</span> <strong>${item.city}, ${item.country}</strong></div>
+	                    <div class="popup-row"><span>📊 状态:</span> 
+	                        <span class="badge ${item.status === '运行中' ? 'running' : 'designing'}">${item.status}</span>
+	                    </div>
+	                </div>
+	            `;
+	            const marker = L.marker([item.lat, item.lng], { icon: customIcon })
+	                .bindPopup(popupContent)
+	                .bindTooltip(`${item.city} - ${item.project}`, { direction: 'top', offset: [0, -20] });
+	            marker.on('click', () => this.highlightTableRow(index));
+	            this.markersCache[index] = marker;
+	        });
+	    },
+	    renderStats: function() {
+	        const total = this.data.length;
+	        const running = this.data.filter(d => d.status === '运行中').length;
+	        const designing = this.data.filter(d => d.status === '设计中').length;
+	        const countries = [...new Set(this.data.map(d => d.country))].length;
+	        document.getElementById('statsContainer').innerHTML = `
+	            <div class="stat-card"><div class="stat-number">${total}</div><div class="stat-label">总项目</div></div>
+	            <div class="stat-card"><div class="stat-number" style="color:var(--success-color)">${running}</div><div class="stat-label">运行中</div></div>
+	            <div class="stat-card"><div class="stat-number" style="color:var(--primary-color)">${designing}</div><div class="stat-label">设计中</div></div>
+	            <div class="stat-card"><div class="stat-number">${countries}</div><div class="stat-label">国家数</div></div>
+	        `;
+	    },
+	    renderFilterButtons: function() {
+	        const statuses = [...new Set(this.data.map(d => d.status))];
+	        const statusContainer = document.getElementById('statusFilters');
+	        statusContainer.innerHTML = '';
+	        statuses.forEach(status => {
+	            const btn = document.createElement('button');
+	            btn.className = `filter-btn status-${status === '运行中' ? 'running' : 'designing'}`;
+	            btn.textContent = status;
+	            btn.onclick = () => this.toggleFilter('status', status, btn);
+	            statusContainer.appendChild(btn);
+	        });
+	        const countries = [...new Set(this.data.map(d => d.country))].sort();
+	        const countryContainer = document.getElementById('countryFilters');
+	        countryContainer.innerHTML = '';
+	        countries.forEach(country => {
+	            const btn = document.createElement('button');
+	            btn.className = 'filter-btn country';
+	            btn.textContent = country;
+	            btn.onclick = () => this.toggleFilter('country', country, btn);
+	            countryContainer.appendChild(btn);
+	        });
+	    },
+	    renderTable: function() {
+	        const tbody = document.getElementById('tableBody');
+	        tbody.innerHTML = '';
+	        this.data.forEach((item, index) => {
+	            const tr = document.createElement('tr');
+	            tr.id = `row-${index}`;
+	            tr.innerHTML = `
+	                <td>${item.country}</td>
+	                <td>${item.city}</td>
+	                <td>${item.project}</td>
+	                <td><span class="badge ${item.status === '运行中' ? 'running' : 'designing'}">${item.status}</span></td>
+	            `;
+	            tr.onclick = () => this.focusMapMarker(index);
+	            tbody.appendChild(tr);
+	        });
+	    },
+	    toggleFilter: function(type, value, btnElement) {
+	        const targetArray = type === 'status' ? this.state.activeStatuses : this.state.activeCountries;
+	        const index = targetArray.indexOf(value);
+	        if (index > -1) {
+	            targetArray.splice(index, 1);
+	            btnElement.classList.remove('active');
+	        } else {
+	            targetArray.push(value);
+	            btnElement.classList.add('active');
+	        }
+	        this.updateView();
+	    },
+	    resetAll: function() {
+	        this.state.activeStatuses = [];
+	        this.state.activeCountries = [];
+	        document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
+	        this.updateView();
+	        this.map.flyTo([35, 105], 4);
+	    },
+	    updateView: function() {
+	        const filteredData = this.data.filter(item => {
+	            const statusMatch = this.state.activeStatuses.length === 0 || this.state.activeStatuses.includes(item.status);
+	            const countryMatch = this.state.activeCountries.length === 0 || this.state.activeCountries.includes(item.country);
+	            return statusMatch && countryMatch;
+	        });
+	        document.getElementById('tableCount').textContent = `显示 ${filteredData.length} / ${this.data.length} 项`;
+	        this.markerLayer.clearLayers();
+	        filteredData.forEach(item => {
+	            const index = this.data.indexOf(item);
+	            if (this.markersCache[index]) {
+	                this.markersCache[index].addTo(this.markerLayer);
+	            }
+	        });
+	        const rows = document.querySelectorAll('#tableBody tr');
+	        const emptyState = document.getElementById('emptyState');
+	        let hasVisible = false;
+	        rows.forEach((row, index) => {
+	            const item = this.data[index];
+	            const isVisible = filteredData.includes(item);
+	            if (isVisible) {
+	                row.style.display = '';
+	                if (row.classList.contains('highlighted-temp')) {
+	                    row.classList.add('highlighted');
+	                }
+	                hasVisible = true;
+	            } else {
+	                row.style.display = 'none';
+	            }
+	        });
+	        emptyState.style.display = hasVisible ? 'none' : 'block';
+	    },
+	    focusMapMarker: function(index) {
+	        const item = this.data[index];
+	        const marker = this.markersCache[index];
+	        if (marker) {
+	            // 手机端缩小缩放距离
+	            const zoomLevel = window.innerWidth < 768 ? 5 : 6;
+	            this.map.flyTo([item.lat, item.lng], zoomLevel, { duration: 1.5 });
+	            setTimeout(() => marker.openPopup(), 1500);
+	            this.highlightTableRow(index);
+	        }
+	    },
+	    highlightTableRow: function(index) {
+	        document.querySelectorAll('tr.highlighted').forEach(r => {
+	            r.classList.remove('highlighted');
+	            r.classList.remove('highlighted-temp');
+	        });
+	        const row = document.getElementById(`row-${index}`);
+	        if (row) {
+	            row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+	            row.classList.add('highlighted');
+	            row.classList.add('highlighted-temp');
+	        }
+	    }
+	};
+	document.addEventListener('DOMContentLoaded', () => {
+	    app.init();
+	});
+	</script>
+	</body>
+	</html>
