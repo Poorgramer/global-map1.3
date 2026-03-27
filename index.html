@@ -2,13 +2,10 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <!-- 移动端优化关键标签：禁止缩放，适应屏幕宽度 -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>全球项目可视化 (移动优化版)</title>
-    <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-        /* 基础重置 */
         html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow-x: hidden; }
         :root {
             --primary-color: #0984e3;
@@ -24,7 +21,6 @@
             display: flex;
             flex-direction: column;
         }
-        /* 布局容器 - 增加最大宽度限制，PC端更好看 */
         .container {
             width: 100%;
             max-width: 1440px;
@@ -38,10 +34,9 @@
         header { text-align: center; margin-bottom: 5px; }
         h1 { margin: 0; font-size: 1.5rem; color: #2d3436; }
         .subtitle { color: var(--text-light); margin-top: 5px; font-size: 0.85rem; }
-        /* 统计卡片 - 手机端优化网格 */
         .stats-grid {
             display: grid;
-            grid-template-columns: repeat(4, 1fr); /* 默认4列 */
+            grid-template-columns: repeat(4, 1fr);
             gap: 10px;
         }
         .stat-card {
@@ -53,7 +48,6 @@
         }
         .stat-number { font-size: 1.5rem; font-weight: 700; color: var(--primary-color); }
         .stat-label { font-size: 0.75rem; color: var(--text-light); margin-top: 4px; }
-        /* 控制面板 - 手机端横向滚动优化 */
         .control-panel {
             background: white;
             padding: 15px;
@@ -68,7 +62,7 @@
         .filter-options { 
             display: flex; 
             gap: 8px; 
-            overflow-x: auto; /* 手机端支持横向滚动 */
+            overflow-x: auto;
             padding-bottom: 5px;
             -webkit-overflow-scrolling: touch;
         }
@@ -79,7 +73,7 @@
             border-radius: 15px;
             font-size: 0.85rem;
             cursor: pointer;
-            white-space: nowrap; /* 防止文字换行 */
+            white-space: nowrap;
             transition: all 0.2s;
             color: var(--text-light);
         }
@@ -94,10 +88,10 @@
             padding: 6px 16px;
             border-radius: 6px;
             font-size: 0.85rem;
+            cursor: pointer;
         }
-        /* === 地图容器 === */
         #map-wrapper {
-            height: 50vh; /* 手机端占屏幕高度的一半 */
+            height: 50vh;
             width: 100%;
             background: white;
             border-radius: 10px;
@@ -107,7 +101,6 @@
             z-index: 1;
         }
         #map { height: 100%; width: 100%; margin: 0; padding: 0; }
-        /* === 表格容器 === */
         .table-wrapper {
             background: white;
             border-radius: 10px;
@@ -115,7 +108,7 @@
             overflow: hidden;
             display: flex;
             flex-direction: column;
-            height: 400px; /* 固定高度，内部滚动 */
+            height: 400px;
         }
         .table-header {
             padding: 10px 15px;
@@ -136,9 +129,8 @@
             border-bottom: 1px solid #ddd;
             font-size: 0.8rem;
         }
-        td { padding: 10px; border-bottom: 1px solid #f1f2f6; }
+        td { padding: 10px; border-bottom: 1px solid #f1f2f6; cursor: pointer; }
         tr:hover { background-color: #f0f8ff; }
-        /* 点击行高亮动画 */
         tr.highlighted {
             background-color: #ffeaa7 !important;
             animation: pulse-row 1.5s infinite;
@@ -151,7 +143,6 @@
         .badge { padding: 3px 8px; border-radius: 10px; font-size: 0.7rem; color: white; font-weight: bold;}
         .badge.running { background-color: var(--success-color); }
         .badge.designing { background-color: var(--primary-color); }
-        /* Marker 样式 */
         .custom-marker {
             display: flex;
             align-items: center;
@@ -162,19 +153,17 @@
         }
         .marker-running { background-color: var(--success-color); color: white; }
         .marker-designing { background-color: var(--primary-color); color: white; }
-        /* 弹窗样式 */
         .leaflet-popup-content-wrapper { border-radius: 8px; }
         .leaflet-popup-content h3 { margin: 0 0 5px 0; font-size: 16px; color: #333; }
         .leaflet-popup-content p { margin: 2px 0; font-size: 13px; color: #666; }
         .popup-row { display: flex; justify-content: space-between; gap: 10px; margin-bottom: 2px;}
         .empty-state { text-align: center; padding: 30px; color: #999; font-size: 0.9rem; display: none;}
-        /* === 响应式调整 === */
         @media (max-width: 768px) {
             .stats-grid {
-                grid-template-columns: repeat(2, 1fr); /* 手机端改为2列 */
+                grid-template-columns: repeat(2, 1fr);
             }
             #map-wrapper {
-                height: 40vh; /* 手机端地图高度减小 */
+                height: 40vh;
             }
             .container { padding: 10px; gap: 10px; }
             h1 { font-size: 1.2rem; }
@@ -249,6 +238,7 @@ const app = {
     map: null,
     markerLayer: null,
     markersCache: {},
+    currentPopupMarker: null, // 记录当前打开弹窗的标记
     init: function() {
         this.initMap();
         this.renderStats();
@@ -275,6 +265,13 @@ const app = {
         L.control.zoom({ position: 'bottomright' }).addTo(this.map);
         this.markerLayer = L.layerGroup().addTo(this.map);
         this.createMarkers();
+        // 监听地图点击事件，关闭所有弹窗
+        this.map.on('click', () => {
+            if (this.map) {
+                this.map.closePopup();
+                this.currentPopupMarker = null;
+            }
+        });
         setTimeout(() => {
             this.map.invalidateSize();
         }, 100);
@@ -302,19 +299,53 @@ const app = {
             const marker = L.marker([item.lat, item.lng], { icon: customIcon })
                 .bindPopup(popupContent)
                 .bindTooltip(`${item.city} - ${item.project}`, { direction: 'top', offset: [0, -20] });
+            
+            // 标记点击事件：关闭旧弹窗，打开新弹窗，只高亮表格行（不滚动）
             marker.on('click', (e) => {
-                // 确保点击标记时关闭其他弹窗，并触发高亮表格行
+                // 关键修复：先关闭所有弹窗，再打开当前标记的弹窗
+                // 使用 setTimeout 确保弹窗状态正确切换
                 if (this.map) {
-                    // 关闭当前打开的弹窗
                     this.map.closePopup();
                 }
-                // 打开当前标记的弹窗
-                marker.openPopup();
-                // 高亮对应的表格行
-                this.highlightTableRow(index);
+                // 短暂延迟后打开新弹窗，确保状态完全重置
+                setTimeout(() => {
+                    marker.openPopup();
+                    this.currentPopupMarker = marker;
+                }, 10);
+                // 高亮对应的表格行（不滚动）
+                this.highlightTableRowOnly(index);
+                // 阻止事件冒泡，避免触发地图点击关闭
+                L.DomEvent.stopPropagation(e);
             });
             this.markersCache[index] = marker;
         });
+    },
+    // 仅高亮表格行，不滚动
+    highlightTableRowOnly: function(index) {
+        // 移除所有高亮
+        document.querySelectorAll('tr.highlighted').forEach(r => {
+            r.classList.remove('highlighted');
+            r.classList.remove('highlighted-temp');
+        });
+        const row = document.getElementById(`row-${index}`);
+        if (row) {
+            row.classList.add('highlighted');
+            row.classList.add('highlighted-temp');
+        }
+    },
+    // 表格行点击：地图定位并打开弹窗，同时滚动到该行
+    highlightTableRow: function(index) {
+        // 移除所有高亮
+        document.querySelectorAll('tr.highlighted').forEach(r => {
+            r.classList.remove('highlighted');
+            r.classList.remove('highlighted-temp');
+        });
+        const row = document.getElementById(`row-${index}`);
+        if (row) {
+            row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            row.classList.add('highlighted');
+            row.classList.add('highlighted-temp');
+        }
     },
     renderStats: function() {
         const total = this.data.length;
@@ -384,9 +415,9 @@ const app = {
         document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
         this.updateView();
         this.map.flyTo([35, 105], 4);
-        // 重置时关闭所有弹窗
         if (this.map) {
             this.map.closePopup();
+            this.currentPopupMarker = null;
         }
     },
     updateView: function() {
@@ -420,35 +451,25 @@ const app = {
             }
         });
         emptyState.style.display = hasVisible ? 'none' : 'block';
-        // 更新视图时如果有弹窗打开，保持其状态不变（不做额外操作）
     },
     focusMapMarker: function(index) {
         const item = this.data[index];
         const marker = this.markersCache[index];
         if (marker) {
-            // 先关闭所有打开的弹窗，确保新点击的标记弹窗能正常显示
+            // 先关闭所有弹窗
             if (this.map) {
                 this.map.closePopup();
+                this.currentPopupMarker = null;
             }
             const zoomLevel = window.innerWidth < 768 ? 5 : 6;
-            this.map.flyTo([item.lat, item.lng], zoomLevel, { duration: 1.5 });
-            // 延迟打开弹窗，确保动画完成且视图稳定
+            this.map.flyTo([item.lat, item.lng], zoomLevel, { duration: 1.2 });
+            // 等待地图移动完成后打开弹窗
             setTimeout(() => {
                 marker.openPopup();
+                this.currentPopupMarker = marker;
             }, 500);
+            // 高亮并滚动到表格行
             this.highlightTableRow(index);
-        }
-    },
-    highlightTableRow: function(index) {
-        document.querySelectorAll('tr.highlighted').forEach(r => {
-            r.classList.remove('highlighted');
-            r.classList.remove('highlighted-temp');
-        });
-        const row = document.getElementById(`row-${index}`);
-        if (row) {
-            row.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            row.classList.add('highlighted');
-            row.classList.add('highlighted-temp');
         }
     }
 };
