@@ -238,8 +238,11 @@ const app = {
     map: null,
     markerLayer: null,
     markersCache: {},
-    currentPopupMarker: null, // 记录当前打开弹窗的标记
+    currentPopupMarker: null,
+    isMobile: false, // 设备检测
     init: function() {
+        // 检测是否为移动设备
+        this.isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth < 768;
         this.initMap();
         this.renderStats();
         this.renderFilterButtons();
@@ -300,10 +303,9 @@ const app = {
                 .bindPopup(popupContent)
                 .bindTooltip(`${item.city} - ${item.project}`, { direction: 'top', offset: [0, -20] });
             
-            // 标记点击事件：关闭旧弹窗，打开新弹窗，只高亮表格行（不滚动）
+            // 标记点击事件
             marker.on('click', (e) => {
-                // 关键修复：先关闭所有弹窗，再打开当前标记的弹窗
-                // 使用 setTimeout 确保弹窗状态正确切换
+                // 关键修复：先关闭所有弹窗
                 if (this.map) {
                     this.map.closePopup();
                 }
@@ -312,9 +314,11 @@ const app = {
                     marker.openPopup();
                     this.currentPopupMarker = marker;
                 }, 10);
-                // 高亮对应的表格行（不滚动）
+                
+                // 仅高亮表格行，移动端和PC端都不滚动
                 this.highlightTableRowOnly(index);
-                // 阻止事件冒泡，避免触发地图点击关闭
+                
+                // 阻止事件冒泡
                 L.DomEvent.stopPropagation(e);
             });
             this.markersCache[index] = marker;
@@ -333,7 +337,7 @@ const app = {
             row.classList.add('highlighted-temp');
         }
     },
-    // 表格行点击：地图定位并打开弹窗，同时滚动到该行
+    // 表格行点击：地图定位并打开弹窗，同时滚动到该行（表格行点击保留滚动功能）
     highlightTableRow: function(index) {
         // 移除所有高亮
         document.querySelectorAll('tr.highlighted').forEach(r => {
@@ -468,7 +472,7 @@ const app = {
                 marker.openPopup();
                 this.currentPopupMarker = marker;
             }, 500);
-            // 高亮并滚动到表格行
+            // 表格行点击时滚动并高亮该行
             this.highlightTableRow(index);
         }
     }
